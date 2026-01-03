@@ -1,0 +1,23 @@
+# Core Framework
+fastapi>=0.109.0
+uvicorn>=0.27.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-multipart>=0.0.6
+
+# Image Processing
+Pillow>=10.2.0
+pillow-heif>=0.14.0
+rembg>=2.0.56
+
+# Job Queue
+redis>=5.0.1
+rq>=1.15.1
+
+# Storage & HTTP
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Development & Testing
+pytest>=7.4.3
+httpx>=0.25.2
