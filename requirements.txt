@@ -21,3 +21,17 @@ python-dotenv>=1.0.0
 # Development & Testing
 pytest>=7.4.3
 httpx>=0.25.2
+fastapi
+httpx
+Pillow
+pillow-heif
+pydantic
+pydantic-settings
+pytest
+python-dotenv
+python-multipart
+redis
+rembg
+requests
+rq
+uvicorn

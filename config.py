@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     blob_read_write_token: str = Field(default="")
     
     # API Configuration
-    cors_origins: str = Field(default="http://localhost:3000")
+    cors_origins: str = Field(default="*")
     max_file_size_mb: int = Field(default=10)
     job_timeout_seconds: int = Field(default=30)
     
