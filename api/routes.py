@@ -1,103 +1,119 @@
 """
-API route definitions.
-Defines the three main endpoints: upload, status, and result.
+API Routes
+Handles all HTTP endpoints for the Vector Conversion Helper.
+
+Endpoints:
+- POST /api/upload - Upload an image for conversion
+- GET /api/status/{job_id} - Check job status
+- GET /api/result/{job_id} - Get job result and file URLs
+- GET /api/files/{job_id}/{filename} - Download a file
 """
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from datetime import datetime, timezone
-import uuid
+import shutil
+import tempfile
+from pathlib import Path
+from typing import Optional
+
+from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi.responses import FileResponse
 
 from models import (
     UploadResponse,
     StatusResponse,
     ResultResponse,
     ErrorResponse,
-    HealthResponse,
-    JobStatus,
-    ErrorCode,
 )
-from config import get_settings
+from utils.validation import validate_file_type, validate_file_size
+from utils.errors import ValidationError
+from workers.processing import (
+    create_job,
+    process_job,
+    get_job_status,
+)
+from services.storage import StorageService
 
-router = APIRouter()
-settings = get_settings()
 
-# Temporary in-memory storage for jobs (will be replaced with Redis later)
-jobs_db: dict = {}
+router = APIRouter(tags=["conversion"])
 
-
-@router.get("/health", response_model=HealthResponse)
-async def health_check():
-    """Health check endpoint."""
-    return HealthResponse()
+# Initialize storage service
+storage = StorageService()
 
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_file(file: UploadFile = File(...)):
     """
-    Upload a raster image for conversion.
+    Upload an image for vector conversion.
     
-    Accepts: JPG, PNG, HEIC
-    Returns: job_id to track progress
+    Accepts: JPG, PNG, HEIC (max 10MB)
+    Returns: job_id to track processing status
     """
+    # Read file content
+    content = await file.read()
+    
+    # Validate file type (magic bytes)
+    try:
+        detected_type = validate_file_type(content)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
     # Validate file size
-    contents = await file.read()
-    if len(contents) > settings.max_file_size_bytes:
-        raise HTTPException(
-            status_code=413,
-            detail={
-                "error_code": ErrorCode.FILE_TOO_LARGE.value,
-                "error_message": f"File exceeds {settings.max_file_size_mb}MB limit",
-            }
-        )
+    try:
+        validate_file_size(content)
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     
-    # Generate job ID
-    job_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    # Create job
+    original_filename = file.filename or "upload"
+    job_id = create_job(original_filename)
     
-    # Store job info (temporary - will use Redis later)
-    jobs_db[job_id] = {
-        "status": JobStatus.QUEUED,
-        "progress": 0,
-        "stage": "Queued for processing",
-        "created_at": now,
-        "updated_at": now,
-        "filename": file.filename,
-        "file_size": len(contents),
-        "contents": contents,  # Temporary - will use blob storage later
+    # Save uploaded file to temp location
+    job_dir = storage.get_job_dir(job_id)
+    
+    # Determine extension from detected type
+    ext_map = {
+        "image/jpeg": ".jpg",
+        "image/png": ".png",
+        "image/heic": ".heic",
     }
+    ext = ext_map.get(detected_type, ".png")
+    temp_upload_path = job_dir / f"upload{ext}"
     
-    # TODO: Queue background job here
+    # Write file
+    temp_upload_path.write_bytes(content)
+    
+    # Process synchronously for MVP (async with RQ later)
+    # This blocks but keeps MVP simple
+    result = process_job(job_id, str(temp_upload_path))
+    
+    # Get final status
+    status = get_job_status(job_id)
     
     return UploadResponse(
         job_id=job_id,
-        status=JobStatus.QUEUED,
-        created_at=now,
+        status=status["status"],
+        created_at=status["created_at"],
     )
 
 
 @router.get("/status/{job_id}", response_model=StatusResponse)
 async def get_status(job_id: str):
     """
-    Check the status of a conversion job.
-    """
-    if job_id not in jobs_db:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error_code": ErrorCode.JOB_NOT_FOUND.value,
-                "error_message": f"Job {job_id} not found",
-            }
-        )
+    Get the current status of a conversion job.
     
-    job = jobs_db[job_id]
+    Returns: status, progress percentage, current stage
+    """
+    status = get_job_status(job_id)
+    
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
     
     return StatusResponse(
         job_id=job_id,
-        status=job["status"],
-        progress=job["progress"],
-        stage=job["stage"],
-        created_at=job["created_at"],
-        updated_at=job["updated_at"],
+        status=status["status"],
+        progress=status.get("progress", 0),
+        stage=status.get("stage", "Unknown"),
+        created_at=status["created_at"],
+        updated_at=status["updated_at"],
     )
 
 
@@ -106,43 +122,79 @@ async def get_result(job_id: str):
     """
     Get the result of a completed conversion job.
     
-    Returns download URLs for all output files.
+    Returns: file URLs for original and converted files
     """
-    if job_id not in jobs_db:
-        raise HTTPException(
-            status_code=404,
-            detail={
-                "error_code": ErrorCode.JOB_NOT_FOUND.value,
-                "error_message": f"Job {job_id} not found",
-            }
-        )
+    status = get_job_status(job_id)
     
-    job = jobs_db[job_id]
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
     
-    if job["status"] == JobStatus.FAILED:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error_code": job.get("error_code", ErrorCode.VECTORIZATION_FAILED.value),
-                "error_message": job.get("error_message", "Job failed"),
-            }
-        )
+    if status["status"] == "failed":
+        return {
+            "job_id": job_id,
+            "status": "failed",
+            "error_code": status.get("error_code", "UNKNOWN"),
+            "error_message": status.get("error_message", "Processing failed"),
+        }
     
-    if job["status"] != JobStatus.COMPLETED:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error_code": "JOB_NOT_COMPLETE",
-                "error_message": f"Job is still {job['status'].value}. Check /status/{job_id}",
-            }
-        )
+    if status["status"] != "completed":
+        return {
+            "job_id": job_id,
+            "status": status["status"],
+            "message": "Job is still processing. Check /api/status/{job_id} for progress.",
+        }
     
-    # Return result (placeholder - will have real URLs later)
     return {
         "job_id": job_id,
         "status": "completed",
-        "files": job.get("files", {}),
-        "metadata": job.get("metadata", {}),
-        "created_at": job["created_at"],
-        "completed_at": job.get("completed_at", job["updated_at"]),
+        "files": status.get("files", {}),
+        "metadata": status.get("metadata", {}),
+        "created_at": status["created_at"],
+        "completed_at": status.get("completed_at"),
+    }
+
+
+@router.get("/files/{job_id}/{filename}")
+async def download_file(job_id: str, filename: str):
+    """
+    Download a file from a completed job.
+    
+    Files available:
+    - original.{jpg,png,heic} - Original uploaded file
+    - output.svg - Vector SVG output
+    - output.eps - Vector EPS output
+    - output.pdf - Vector PDF output
+    """
+    file_path = storage.get_file_path(job_id, filename)
+    
+    if not file_path:
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+    
+    # Determine content type
+    content_types = {
+        ".svg": "image/svg+xml",
+        ".eps": "application/postscript",
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".heic": "image/heic",
+    }
+    
+    suffix = file_path.suffix.lower()
+    content_type = content_types.get(suffix, "application/octet-stream")
+    
+    return FileResponse(
+        path=file_path,
+        media_type=content_type,
+        filename=filename,
+    )
+
+
+@router.get("/health")
+async def health_check():
+    """Health check endpoint."""
+    return {
+        "status": "healthy",
+        "service": "vector-conversion-helper",
     }

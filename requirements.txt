@@ -35,3 +35,4 @@ rembg
 requests
 rq
 uvicorn
+cairosvg==2.8.2

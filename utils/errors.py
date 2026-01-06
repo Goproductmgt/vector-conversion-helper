@@ -1,50 +1,86 @@
 """
-Custom exceptions for Vector Conversion Helper.
-These provide clear, specific error handling throughout the app.
-"""
+Custom Exception Classes
+Provides clear, specific errors for different failure modes.
 
-from models import ErrorCode
+Usage:
+    from utils.errors import ValidationError, ProcessingError, VectorizationError
+    
+    raise ValidationError("File type not supported")
+    raise ProcessingError("Background removal failed")
+    raise VectorizationError("Potrace timed out")
+"""
 
 
 class VectorConversionError(Exception):
-    """Base exception for all app errors."""
+    """Base exception for all Vector Conversion Helper errors."""
     
-    def __init__(self, message: str, error_code: ErrorCode):
+    def __init__(self, message: str, code: str = "UNKNOWN_ERROR"):
         self.message = message
-        self.error_code = error_code
+        self.code = code
         super().__init__(self.message)
 
 
-class InvalidFileTypeError(VectorConversionError):
-    """Raised when uploaded file is not JPG, PNG, or HEIC."""
+class ValidationError(VectorConversionError):
+    """
+    Raised when input validation fails.
     
-    def __init__(self, message: str = "File must be JPG, PNG, or HEIC"):
-        super().__init__(message, ErrorCode.INVALID_FILE_TYPE)
-
-
-class FileTooLargeError(VectorConversionError):
-    """Raised when file exceeds size limit."""
+    Examples:
+    - Unsupported file type
+    - File too large
+    - Empty file
+    """
     
-    def __init__(self, message: str = "File exceeds size limit"):
-        super().__init__(message, ErrorCode.FILE_TOO_LARGE)
+    def __init__(self, message: str):
+        super().__init__(message, code="VALIDATION_ERROR")
 
 
-class ProcessingTimeoutError(VectorConversionError):
-    """Raised when processing takes too long."""
+class ProcessingError(VectorConversionError):
+    """
+    Raised when image processing fails.
     
-    def __init__(self, message: str = "Processing timed out"):
-        super().__init__(message, ErrorCode.PROCESSING_TIMEOUT)
-
-
-class VectorizationFailedError(VectorConversionError):
-    """Raised when potrace fails to convert the image."""
+    Examples:
+    - Failed to open image
+    - Background removal failed
+    - Image conversion failed
+    """
     
-    def __init__(self, message: str = "Vectorization failed"):
-        super().__init__(message, ErrorCode.VECTORIZATION_FAILED)
+    def __init__(self, message: str):
+        super().__init__(message, code="PROCESSING_ERROR")
 
 
-class ImageTooComplexError(VectorConversionError):
-    """Raised when image has too many colors/gradients for good vectorization."""
+class VectorizationError(VectorConversionError):
+    """
+    Raised when vectorization fails.
     
-    def __init__(self, message: str = "Image too complex for vectorization"):
-        super().__init__(message, ErrorCode.TOO_COMPLEX)
+    Examples:
+    - Potrace not installed
+    - Potrace timed out
+    - Output file not created
+    """
+    
+    def __init__(self, message: str):
+        super().__init__(message, code="VECTORIZATION_ERROR")
+
+
+class StorageError(VectorConversionError):
+    """
+    Raised when storage operations fail.
+    
+    Examples:
+    - Failed to save file
+    - File not found
+    - Permission denied
+    """
+    
+    def __init__(self, message: str):
+        super().__init__(message, code="STORAGE_ERROR")
+
+
+class JobNotFoundError(VectorConversionError):
+    """
+    Raised when a job ID is not found.
+    """
+    
+    def __init__(self, job_id: str):
+        super().__init__(f"Job not found: {job_id}", code="JOB_NOT_FOUND")
+        self.job_id = job_id
