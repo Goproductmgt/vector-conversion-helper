@@ -38,4 +38,4 @@ A backend API that converts raster images (JPG, PNG, HEIC) to vector formats (SV
 ├── workers/processing.py # Background job functions
 ├── services/            # Business logic
 └── utils/               # Helpers and validation
-```
+```# GoVector
