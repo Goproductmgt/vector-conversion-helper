@@ -46,8 +46,13 @@ if ASSETS_DIR.exists():
 async def serve_index():
     """Serve the frontend or fallback to API info."""
     if INDEX_FILE.exists():
-        return FileResponse(INDEX_FILE)
+        return FileResponse(INDEX_FILE, headers={"Cache-Control": "no-cache"})
     return {"status": "ok", "message": "GoVector API", "docs": "/docs"}
+
+@app.head("/")
+async def health_check_head():
+    """Fast HEAD response for health checks."""
+    return {"status": "ok"}
 
 @app.get("/{full_path:path}")
 async def serve_frontend(full_path: str):

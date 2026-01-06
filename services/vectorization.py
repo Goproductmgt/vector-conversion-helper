@@ -1,21 +1,21 @@
 """
 Vectorization Service
-Wraps VTracer CLI to convert raster images to vector formats (SVG, EPS, PDF).
+Wraps Potrace CLI to convert raster images to vector formats (SVG, EPS, PDF).
 
-VTracer supports full-color vectorization and accepts PNG/JPG directly.
-No intermediate format conversion needed.
+Potrace converts bitmap images to scalable vector graphics.
+Works best for logos, icons, and graphics with clear edges.
 
 Usage:
     from services.vectorization import VectorizationService
     
     service = VectorizationService()
     results = service.vectorize("/path/to/preprocessed.png", "/path/to/output_dir")
-    # results = {"svg": "/path/to/output.svg", "eps": "/path/to/output.eps", "pdf": "/path/to/output.pdf"}
 """
 
 import subprocess
 import shutil
 from pathlib import Path
+from PIL import Image
 import cairosvg
 
 from utils.errors import VectorizationError
@@ -23,26 +23,20 @@ from utils.errors import VectorizationError
 
 class VectorizationService:
     """
-    Converts raster images to vector formats using VTracer CLI.
+    Converts raster images to vector formats using Potrace CLI.
     
-    VTracer features:
-    - Full color support (preserves original colors)
-    - No preprocessing required (accepts PNG/JPG directly)
-    - Fast O(n) algorithm
-    - High quality output
+    Potrace features:
+    - Fast and reliable vectorization
+    - Available as a system package (no compilation needed)
+    - High quality output for logos and graphics
     """
     
     def __init__(self):
-        """Initialize and verify VTracer is available."""
-        # Check system PATH first, fallback to Replit's cargo bin
-        self.vtracer_path = shutil.which("vtracer") or "/home/runner/.cargo/bin/vtracer"
-        self._verify_vtracer_installed()
-    
-    def _verify_vtracer_installed(self) -> None:
-        """Check that VTracer CLI is available on the system."""
-        if not Path(self.vtracer_path).exists():
+        """Initialize and verify Potrace is available."""
+        self.potrace_path = shutil.which("potrace")
+        if not self.potrace_path:
             raise VectorizationError(
-                f"VTracer CLI not found at {self.vtracer_path}. Install with: cargo install vtracer"
+                "Potrace CLI not found. Please install it via the system package manager."
             )
     
     def vectorize(self, input_path: str, output_dir: str) -> dict[str, str]:
@@ -63,94 +57,104 @@ class VectorizationService:
         input_path = Path(input_path)
         output_dir = Path(output_dir)
         
-        # Ensure output directory exists
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Step 1: Generate SVG using VTracer
-        svg_path = output_dir / "output.svg"
-        self._run_vtracer(input_path, svg_path)
+        bmp_path = output_dir / "temp_input.bmp"
+        self._convert_to_bmp(input_path, bmp_path)
         
-        # Step 2: Convert SVG to EPS and PDF
-        eps_path = output_dir / "output.eps"
-        pdf_path = output_dir / "output.pdf"
-        
-        self._convert_svg_to_eps(svg_path, eps_path)
-        self._convert_svg_to_pdf(svg_path, pdf_path)
-        
-        return {
-            "svg": str(svg_path),
-            "eps": str(eps_path),
-            "pdf": str(pdf_path),
-        }
+        try:
+            svg_path = output_dir / "output.svg"
+            self._run_potrace(bmp_path, svg_path, "svg")
+            
+            eps_path = output_dir / "output.eps"
+            pdf_path = output_dir / "output.pdf"
+            
+            self._convert_svg_to_eps(svg_path, eps_path)
+            self._convert_svg_to_pdf(svg_path, pdf_path)
+            
+            return {
+                "svg": str(svg_path),
+                "eps": str(eps_path),
+                "pdf": str(pdf_path),
+            }
+        finally:
+            if bmp_path.exists():
+                bmp_path.unlink()
     
-    def _run_vtracer(self, input_path: Path, output_path: Path) -> None:
+    def _convert_to_bmp(self, input_path: Path, bmp_path: Path) -> None:
         """
-        Run VTracer CLI to generate SVG vector file.
-        
-        VTracer parameters:
-        --colormode color: Full color output (default, preserves colors)
-        --hierarchical stacked: Layer colors for better quality
-        --mode spline: Smooth curves (better than polygon mode)
-        --filter_speckle 4: Remove noise smaller than 4px
-        --color_precision 6: Balance between quality and file size
-        --corner_threshold 60: Smooth corners (good for logos/graphics)
-        --segment_length 10: Curve smoothness
-        --splice_threshold 45: Join nearby segments
+        Convert input image to BMP format for Potrace.
+        Converts to grayscale and applies threshold for better vectorization.
+        """
+        try:
+            with Image.open(input_path) as img:
+                if img.mode == 'RGBA':
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    background.paste(img, mask=img.split()[3])
+                    img = background
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                gray = img.convert('L')
+                bw = gray.point(lambda x: 0 if x < 128 else 255, '1')
+                bw.save(bmp_path, 'BMP')
+                
+        except Exception as e:
+            raise VectorizationError(f"Failed to convert image to BMP: {e}")
+    
+    def _run_potrace(self, input_path: Path, output_path: Path, fmt: str) -> None:
+        """
+        Run Potrace CLI to generate vector output.
         
         Args:
-            input_path: Path to input image (PNG/JPG)
-            output_path: Path for output SVG file
+            input_path: Path to input BMP file
+            output_path: Path for output file
+            fmt: Output format (svg, eps, pdf)
         """
+        format_flags = {
+            "svg": ["-s"],
+            "eps": ["-e"],
+            "pdf": ["-b", "pdf"],
+        }
+        
         cmd = [
-            self.vtracer_path,  # Use the full path we detected
-            "--input", str(input_path),
-            "--output", str(output_path),
-            "--colormode", "color",
-            "--hierarchical", "stacked",
-            "--mode", "spline",
-            "--filter_speckle", "4",
-            "--color_precision", "6",
-            "--corner_threshold", "60",
-            "--segment_length", "10",
-            "--splice_threshold", "45",
-        ]
+            self.potrace_path,
+            str(input_path),
+            "-o", str(output_path),
+            "--turdsize", "2",
+            "--alphamax", "1",
+            "--opttolerance", "0.2",
+        ] + format_flags.get(fmt, ["-s"])
         
         try:
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=30,  # 30 second timeout
+                timeout=30,
             )
             
             if result.returncode != 0:
                 raise VectorizationError(
-                    f"VTracer failed: {result.stderr}"
+                    f"Potrace failed: {result.stderr}"
                 )
             
-            # Verify output file was created
             if not output_path.exists():
                 raise VectorizationError(
-                    "VTracer completed but SVG file was not created"
+                    f"Potrace completed but {fmt.upper()} file was not created"
                 )
                 
         except subprocess.TimeoutExpired:
             raise VectorizationError(
-                "VTracer timed out while generating SVG"
+                "Potrace timed out while generating vector output"
             )
         except FileNotFoundError:
             raise VectorizationError(
-                f"VTracer CLI not found at {self.vtracer_path}. Is it installed? Run: cargo install vtracer"
+                f"Potrace CLI not found at {self.potrace_path}"
             )
     
     def _convert_svg_to_eps(self, svg_path: Path, eps_path: Path) -> None:
-        """
-        Convert SVG to EPS format using cairosvg.
-        
-        Args:
-            svg_path: Path to input SVG file
-            eps_path: Path for output EPS file
-        """
+        """Convert SVG to EPS format using cairosvg."""
         try:
             cairosvg.svg2ps(
                 url=str(svg_path),
@@ -164,13 +168,7 @@ class VectorizationService:
             raise VectorizationError(f"Failed to convert SVG to EPS: {e}")
     
     def _convert_svg_to_pdf(self, svg_path: Path, pdf_path: Path) -> None:
-        """
-        Convert SVG to PDF format using cairosvg.
-        
-        Args:
-            svg_path: Path to input SVG file
-            pdf_path: Path for output PDF file
-        """
+        """Convert SVG to PDF format using cairosvg."""
         try:
             cairosvg.svg2pdf(
                 url=str(svg_path),
@@ -185,7 +183,7 @@ class VectorizationService:
     
     def vectorize_single(self, input_path: str, output_path: str, fmt: str) -> str:
         """
-        Convert to a single format (useful for testing).
+        Convert to a single format.
         
         Args:
             input_path: Path to preprocessed image
@@ -202,25 +200,28 @@ class VectorizationService:
         input_path = Path(input_path)
         output_path = Path(output_path)
         
-        # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        if fmt == "svg":
-            # Direct SVG generation
-            self._run_vtracer(input_path, output_path)
-        else:
-            # Generate SVG first, then convert
-            svg_path = output_path.parent / "temp_output.svg"
-            self._run_vtracer(input_path, svg_path)
-            
-            try:
-                if fmt == "eps":
-                    self._convert_svg_to_eps(svg_path, output_path)
-                elif fmt == "pdf":
-                    self._convert_svg_to_pdf(svg_path, output_path)
-            finally:
-                # Clean up temporary SVG
-                if svg_path.exists():
-                    svg_path.unlink()
+        bmp_path = output_path.parent / "temp_input.bmp"
+        self._convert_to_bmp(input_path, bmp_path)
+        
+        try:
+            if fmt == "svg":
+                self._run_potrace(bmp_path, output_path, "svg")
+            else:
+                svg_path = output_path.parent / "temp_output.svg"
+                self._run_potrace(bmp_path, svg_path, "svg")
+                
+                try:
+                    if fmt == "eps":
+                        self._convert_svg_to_eps(svg_path, output_path)
+                    elif fmt == "pdf":
+                        self._convert_svg_to_pdf(svg_path, output_path)
+                finally:
+                    if svg_path.exists():
+                        svg_path.unlink()
+        finally:
+            if bmp_path.exists():
+                bmp_path.unlink()
         
         return str(output_path)
