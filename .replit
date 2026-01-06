@@ -4,7 +4,26 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["freetype", "lcms2", "libaom", "libde265", "libheif", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "nasm", "openjpeg", "tcl", "tk", "x265", "zlib"]
+packages = [
+  "freetype",
+  "lcms2",
+  "libaom",
+  "libde265",
+  "libheif",
+  "libimagequant",
+  "libjpeg",
+  "libtiff",
+  "libwebp",
+  "libxcrypt",
+  "nasm",
+  "openjpeg",
+  "tcl",
+  "tk",
+  "x265",
+  "zlib",
+  "cargo",
+  "cairo",
+]
 
 [workflows]
 runButton = "Project"
@@ -36,4 +55,13 @@ externalPort = 80
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]
+run = [
+  "python",
+  "-m",
+  "uvicorn",
+  "main:app",
+  "--host",
+  "0.0.0.0",
+  "--port",
+  "5000",
+]
