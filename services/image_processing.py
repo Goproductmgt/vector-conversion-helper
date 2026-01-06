@@ -27,12 +27,21 @@ try:
 except ImportError:
     HEIC_SUPPORTED = False
 
-# Background removal
-try:
-    from rembg import remove as remove_background
-    REMBG_AVAILABLE = True
-except ImportError:
-    REMBG_AVAILABLE = False
+# Background removal - lazy loaded to avoid slow startup
+REMBG_AVAILABLE = None  # None = not checked yet, True/False after first use
+_remove_background = None
+
+def get_remove_background():
+    """Lazy load rembg to avoid slow startup."""
+    global REMBG_AVAILABLE, _remove_background
+    if REMBG_AVAILABLE is None:
+        try:
+            from rembg import remove as remove_bg
+            _remove_background = remove_bg
+            REMBG_AVAILABLE = True
+        except ImportError:
+            REMBG_AVAILABLE = False
+    return _remove_background if REMBG_AVAILABLE else None
 
 from utils.errors import ProcessingError
 
@@ -119,14 +128,15 @@ class ImageProcessingService:
         img.save(normalized_path, format="PNG")
         result["normalized_path"] = str(normalized_path)
         
-        # Step 3: Remove background
-        if REMBG_AVAILABLE:
-            try:
-                img = self._remove_background(img)
+        # Step 3: Remove background (if available)
+        try:
+            processed_img = self._remove_background(img)
+            if processed_img is not img:  # Only update if background was actually removed
+                img = processed_img
                 result["background_removed"] = True
-            except Exception as e:
-                # Background removal failed - continue without it
-                print(f"Warning: Background removal failed: {e}")
+        except Exception as e:
+            # Background removal failed - continue without it
+            print(f"Warning: Background removal failed: {e}")
         
         # Step 4: Convert to high-contrast black/white
         img = self._convert_to_bw(img)
@@ -163,7 +173,8 @@ class ImageProcessingService:
         Remove background using rembg (U-2-Net model).
         Returns image with transparent background converted to white.
         """
-        if not REMBG_AVAILABLE:
+        remove_bg_func = get_remove_background()
+        if remove_bg_func is None:
             return img
         
         # Convert PIL Image to bytes for rembg
@@ -172,7 +183,7 @@ class ImageProcessingService:
         img_bytes.seek(0)
         
         # Remove background
-        output_bytes = remove_background(img_bytes.read())
+        output_bytes = remove_bg_func(img_bytes.read())
         
         # Convert back to PIL Image
         result = Image.open(io.BytesIO(output_bytes))

@@ -32,3 +32,11 @@ temp/
 
 # rembg model cache
 .u2net/
+
+# Node.js / Frontend
+node_modules/
+frontend/node_modules/
+
+# Replit
+.replit
+replit.nix

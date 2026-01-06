@@ -36,3 +36,5 @@ requests
 rq
 uvicorn
 cairosvg==2.8.2
+cairosvg
+email-validator

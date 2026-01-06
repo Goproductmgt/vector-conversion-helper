@@ -1,29 +1,10 @@
-modules = ["python-3.11"]
+modules = ["python-3.11", "nodejs-20"]
 [agent]
 expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = [
-  "freetype",
-  "lcms2",
-  "libaom",
-  "libde265",
-  "libheif",
-  "libimagequant",
-  "libjpeg",
-  "libtiff",
-  "libwebp",
-  "libxcrypt",
-  "nasm",
-  "openjpeg",
-  "tcl",
-  "tk",
-  "x265",
-  "zlib",
-  "cargo",
-  "cairo",
-]
+packages = ["cairo", "cargo", "freetype", "lcms2", "libaom", "libde265", "libheif", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "nasm", "openjpeg", "tcl", "tk", "x265", "zlib"]
 
 [workflows]
 runButton = "Project"
@@ -54,14 +35,6 @@ localPort = 5000
 externalPort = 80
 
 [deployment]
-deploymentTarget = "autoscale"
-run = [
-  "python",
-  "-m",
-  "uvicorn",
-  "main:app",
-  "--host",
-  "0.0.0.0",
-  "--port",
-  "5000",
-]
+deploymentTarget = "vm"
+run = ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0"]
+build = ["bash", "-c", "cd frontend && npm install && npm run build"]
