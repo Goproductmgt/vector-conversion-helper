@@ -4,7 +4,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["cairo", "cargo", "freetype", "lcms2", "libaom", "libde265", "libheif", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "nasm", "openjpeg", "tcl", "tk", "x265", "zlib", "potrace"]
+packages = ["cairo", "cargo", "freetype", "lcms2", "libaom", "libde265", "libheif", "libimagequant", "libjpeg", "libtiff", "libwebp", "libxcrypt", "nasm", "openjpeg", "potrace", "tcl", "tk", "x265", "zlib"]
 
 [workflows]
 runButton = "Project"
