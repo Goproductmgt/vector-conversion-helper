@@ -34,13 +34,15 @@ class VectorizationService:
     
     def __init__(self):
         """Initialize and verify VTracer is available."""
+        # Check system PATH first, fallback to Replit's cargo bin
+        self.vtracer_path = shutil.which("vtracer") or "/home/runner/.cargo/bin/vtracer"
         self._verify_vtracer_installed()
     
     def _verify_vtracer_installed(self) -> None:
         """Check that VTracer CLI is available on the system."""
-        if not shutil.which("vtracer"):
+        if not Path(self.vtracer_path).exists():
             raise VectorizationError(
-                "VTracer CLI not found. Install with: cargo install vtracer"
+                f"VTracer CLI not found at {self.vtracer_path}. Install with: cargo install vtracer"
             )
     
     def vectorize(self, input_path: str, output_dir: str) -> dict[str, str]:
@@ -100,7 +102,7 @@ class VectorizationService:
             output_path: Path for output SVG file
         """
         cmd = [
-            "vtracer",
+            self.vtracer_path,  # Use the full path we detected
             "--input", str(input_path),
             "--output", str(output_path),
             "--colormode", "color",
@@ -138,7 +140,7 @@ class VectorizationService:
             )
         except FileNotFoundError:
             raise VectorizationError(
-                "VTracer CLI not found. Is it installed? Run: cargo install vtracer"
+                f"VTracer CLI not found at {self.vtracer_path}. Is it installed? Run: cargo install vtracer"
             )
     
     def _convert_svg_to_eps(self, svg_path: Path, eps_path: Path) -> None:
