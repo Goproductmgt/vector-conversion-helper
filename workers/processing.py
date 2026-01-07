@@ -83,7 +83,7 @@ def create_job(original_filename: str) -> str:
     return job_id
 
 
-def process_job(job_id: str, input_path: str) -> dict:
+def process_job(job_id: str, input_path: str, remove_background: bool = False) -> dict:
     """
     Process an uploaded image through the full pipeline.
     
@@ -96,6 +96,7 @@ def process_job(job_id: str, input_path: str) -> dict:
     Args:
         job_id: Unique job identifier
         input_path: Path to uploaded file
+        remove_background: Whether to remove background (default: False)
         
     Returns:
         Dictionary with job result:
@@ -130,12 +131,16 @@ def process_job(job_id: str, input_path: str) -> dict:
         storage.save_file_from_path(job_id, str(input_path), original_filename)
         
         # Stage 2: Preprocess
-        set_job_status(job_id, progress=20, stage="Removing background...")
+        if remove_background:
+            set_job_status(job_id, progress=20, stage="Removing background...")
+        else:
+            set_job_status(job_id, progress=20, stage="Processing image...")
         
         preprocess_result = image_processor.preprocess(
             input_path=str(input_path),
             output_dir=str(job_dir),
             job_id=job_id,
+            remove_background=remove_background,
         )
         
         set_job_status(job_id, progress=40, stage="Image preprocessed")

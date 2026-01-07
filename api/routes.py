@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 import requests
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, EmailStr
 
@@ -44,11 +44,15 @@ storage = StorageService()
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    remove_background: bool = Form(False),
+):
     """
     Upload an image for vector conversion.
     
     Accepts: JPG, PNG, HEIC (max 10MB)
+    Optional: remove_background (default: False) - strips background using AI
     Returns: job_id to track processing status
     """
     # Read file content
@@ -87,7 +91,7 @@ async def upload_file(file: UploadFile = File(...)):
     
     # Process synchronously for MVP (async with RQ later)
     # This blocks but keeps MVP simple
-    result = process_job(job_id, str(temp_upload_path))
+    result = process_job(job_id, str(temp_upload_path), remove_background=remove_background)
     
     # Get final status
     status = get_job_status(job_id)

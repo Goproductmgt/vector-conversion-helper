@@ -48,6 +48,7 @@ function App() {
   const [emailSending, setEmailSending] = useState(false)
   const [emailStatus, setEmailStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [emailError, setEmailError] = useState('')
+  const [removeBackground, setRemoveBackground] = useState(false)
 
   const getApiUrl = () => ''
 
@@ -76,6 +77,7 @@ function App() {
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('remove_background', removeBackground.toString())
 
       const response = await fetch(`${getApiUrl()}/api/upload`, {
         method: 'POST',
@@ -103,7 +105,7 @@ function App() {
       setError(ERROR_MESSAGES[errorCode] || ERROR_MESSAGES.PROCESSING_FAILED)
       setState('error')
     }
-  }, [])
+  }, [removeBackground])
 
   const pollJobStatus = async (jobId: string): Promise<void> => {
     return new Promise((resolve) => {
@@ -197,6 +199,7 @@ function App() {
     setResult(null)
     setError('')
     setOriginalPreview(null)
+    setRemoveBackground(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -312,6 +315,21 @@ function App() {
                 <p className="text-xl text-gray-500 mb-4">or click to browse</p>
                 <p className="text-base text-gray-400">
                   JPG, PNG, or HEIC up to 10MB
+                </p>
+              </div>
+
+              <div className="flex items-start gap-4 p-6 bg-white rounded-2xl border border-gray-200 mb-10">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={removeBackground}
+                    onChange={(e) => setRemoveBackground(e.target.checked)}
+                    className="w-5 h-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-lg font-medium text-gray-800">Remove background</span>
+                </label>
+                <p className="text-base text-gray-500 flex-1">
+                  Uses AI to strip backgrounds. Great for logos on busy backgrounds, but may affect gradients or multi-element graphics. Leave off for best color fidelity.
                 </p>
               </div>
 
