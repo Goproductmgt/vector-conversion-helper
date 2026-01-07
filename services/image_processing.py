@@ -5,8 +5,7 @@ Handles preprocessing of uploaded images before vectorization.
 Pipeline:
 1. Normalize input (HEIC → PNG, resize if needed)
 2. Remove background (rembg)
-3. Convert to high-contrast black/white
-4. Save preprocessed image ready for Potrace
+3. Save preprocessed image with colors preserved for VTracer
 
 Usage:
     from services.image_processing import ImageProcessingService
@@ -138,8 +137,8 @@ class ImageProcessingService:
             # Background removal failed - continue without it
             print(f"Warning: Background removal failed: {e}")
         
-        # Step 4: Convert to high-contrast black/white
-        img = self._convert_to_bw(img)
+        # Note: VTracer supports full color - no B&W conversion needed
+        # Colors are preserved for vectorization
         
         # Save preprocessed version (ready for vectorization)
         preprocessed_path = output_dir / f"{job_id}_preprocessed.png"
