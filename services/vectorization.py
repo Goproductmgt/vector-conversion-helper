@@ -88,7 +88,7 @@ class VectorizationService:
                 filter_speckle=4,
                 color_precision=6,
                 corner_threshold=60,
-                segment_length=10,
+                length_threshold=10.0,
                 splice_threshold=45,
             )
             
