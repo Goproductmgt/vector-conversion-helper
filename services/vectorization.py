@@ -34,9 +34,34 @@ class VectorizationService:
     
     def __init__(self):
         """Initialize and verify VTracer is available."""
-        # Check system PATH first, fallback to Replit's cargo bin
-        self.vtracer_path = shutil.which("vtracer") or "/home/runner/.cargo/bin/vtracer"
+        # Check multiple locations for VTracer binary
+        self.vtracer_path = self._find_vtracer()
         self._verify_vtracer_installed()
+    
+    def _find_vtracer(self) -> str:
+        """Find VTracer binary in common locations."""
+        import os
+        
+        # Check system PATH first
+        path_binary = shutil.which("vtracer")
+        if path_binary:
+            return path_binary
+        
+        # Common cargo bin locations
+        home = os.path.expanduser("~")
+        possible_paths = [
+            f"{home}/.cargo/bin/vtracer",
+            "/home/runner/.cargo/bin/vtracer",
+            "/root/.cargo/bin/vtracer",
+            "/usr/local/bin/vtracer",
+        ]
+        
+        for path in possible_paths:
+            if Path(path).exists():
+                return path
+        
+        # Return the most likely path (will fail verification with clear error)
+        return f"{home}/.cargo/bin/vtracer"
     
     def _verify_vtracer_installed(self) -> None:
         """Check that VTracer CLI is available on the system."""
