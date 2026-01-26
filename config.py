@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # Vercel Blob Storage
     blob_read_write_token: str = Field(default="")
     
+    # Replicate API (for Real-ESRGAN enhancement)
+    replicate_api_token: str = Field(default="")
+    replicate_model: str = Field(default="nightmareai/real-esrgan")
+    replicate_scale: int = Field(default=4)  # 2, 3, or 4x upscale
+    enhancement_timeout_seconds: int = Field(default=120)  # Enhancement takes longer than basic vectorization
+    
     # Mailgun
     mailgun_api_key: str = Field(default="")
     mailgun_domain: str = Field(default="")

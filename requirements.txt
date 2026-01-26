@@ -9,6 +9,11 @@ python-multipart>=0.0.6
 Pillow>=10.2.0
 pillow-heif>=0.14.0
 rembg>=2.0.56
+cairosvg>=2.8.2
+vtracer>=0.6.0
+
+# Enhancement Services (Tier 2)
+replicate>=1.0.0
 
 # Job Queue
 redis>=5.0.1
@@ -18,24 +23,9 @@ rq>=1.15.1
 requests>=2.31.0
 python-dotenv>=1.0.0
 
+# Email (if used)
+email-validator>=2.0.0
+
 # Development & Testing
 pytest>=7.4.3
 httpx>=0.25.2
-fastapi
-httpx
-Pillow
-pillow-heif
-pydantic
-pydantic-settings
-pytest
-python-dotenv
-python-multipart
-redis
-rembg
-requests
-rq
-uvicorn
-cairosvg==2.8.2
-cairosvg
-email-validator
-vtracer

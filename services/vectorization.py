@@ -20,16 +20,27 @@ class VectorizationService:
     def __init__(self):
         pass
     
-    def vectorize(self, input_path: str, output_dir: str) -> dict[str, str]:
+    def vectorize(self, input_path: str, output_dir: str, output_prefix: str = "") -> dict[str, str]:
+        """
+        Convert raster image to SVG, EPS, and PDF.
+        
+        Args:
+            input_path: Path to preprocessed PNG image
+            output_dir: Directory to save output files
+            output_prefix: Optional prefix for output filenames (e.g., "enhanced_")
+            
+        Returns:
+            Dictionary with paths: {"svg": "...", "eps": "...", "pdf": "..."}
+        """
         input_path = Path(input_path)
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         
-        svg_path = output_dir / "output.svg"
+        svg_path = output_dir / f"{output_prefix}output.svg"
         self._run_vtracer(input_path, svg_path)
         
-        eps_path = output_dir / "output.eps"
-        pdf_path = output_dir / "output.pdf"
+        eps_path = output_dir / f"{output_prefix}output.eps"
+        pdf_path = output_dir / f"{output_prefix}output.pdf"
         
         self._convert_svg_to_eps(svg_path, eps_path)
         self._convert_svg_to_pdf(svg_path, pdf_path)
