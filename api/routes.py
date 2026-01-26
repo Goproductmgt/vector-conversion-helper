@@ -7,6 +7,7 @@ Endpoints:
 - GET /api/status/{job_id} - Check job status
 - GET /api/result/{job_id} - Get job result and file URLs
 - GET /api/files/{job_id}/{filename} - Download a file
+- POST /api/enhance/{job_id} - Enhance an existing job with Real-ESRGAN (Tier 2)
 - POST /api/email - Email converted files
 """
 
@@ -31,6 +32,7 @@ from utils.errors import ValidationError
 from workers.processing import (
     create_job,
     process_job,
+    process_enhanced_job,
     get_job_status,
 )
 from services.storage import StorageService
@@ -168,6 +170,9 @@ async def download_file(job_id: str, filename: str):
     - output.svg - Vector SVG output
     - output.eps - Vector EPS output
     - output.pdf - Vector PDF output
+    - enhanced_output.svg - Enhanced vector SVG (after /enhance)
+    - enhanced_output.eps - Enhanced vector EPS (after /enhance)
+    - enhanced_output.pdf - Enhanced vector PDF (after /enhance)
     """
     file_path = storage.get_file_path(job_id, filename)
     
@@ -193,6 +198,58 @@ async def download_file(job_id: str, filename: str):
         filename=filename,
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+@router.post("/enhance/{job_id}")
+async def enhance_job(job_id: str):
+    """
+    Enhance an existing job with Real-ESRGAN upscaling (Tier 2).
+    
+    This takes a completed job, runs the original image through Real-ESRGAN
+    for 4x upscaling and artifact removal, then re-vectorizes.
+    
+    Cost: ~$0.003 per image (Replicate API)
+    Time: 15-20 seconds
+    
+    Returns: Updated job with both original and enhanced file URLs
+    
+    Requires: Job must be in "completed" status
+    """
+    # Check job exists and is completed
+    status = get_job_status(job_id)
+    
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    
+    if status["status"] != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job must be completed before enhancement. Current status: {status['status']}"
+        )
+    
+    # Check if already enhanced
+    if status.get("metadata", {}).get("enhanced"):
+        raise HTTPException(
+            status_code=400,
+            detail="Job has already been enhanced"
+        )
+    
+    # Process enhancement synchronously for MVP
+    result = process_enhanced_job(job_id)
+    
+    if result["status"] == "failed":
+        raise HTTPException(
+            status_code=500,
+            detail=result.get("error_message", "Enhancement failed")
+        )
+    
+    return {
+        "job_id": job_id,
+        "status": "completed",
+        "files": result.get("files", {}),
+        "metadata": result.get("metadata", {}),
+        "message": "Enhancement complete. Both original and enhanced versions are available.",
+    }
 
 
 @router.get("/health")
